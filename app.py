@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import re
 from agents import build_reader_agent, build_search_agent, writer_chain, critic_chain
 
 # ── Page config ──────────────────────────────────────────────────────────────
@@ -286,6 +287,78 @@ details summary {
     margin-top: 3rem;
     letter-spacing: 0.08em;
 }
+
+/* ── Tech-stack chips (hero) ── */
+.tech-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-top: 1.6rem;
+}
+.tech-chip {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: #cdc8bf;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,140,50,0.18);
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+}
+
+/* ── Example-topic chips row ── */
+.try-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 1rem 0 1.5rem;
+}
+.try-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.68rem;
+    color: #605850;
+    letter-spacing: 0.1em;
+}
+.ex-chip {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.75rem;
+    color: #a09890;
+    font-family: 'DM Sans', sans-serif;
+}
+
+/* ── Real bordered containers (these actually WRAP the widgets) ── */
+.st-key-input_card,
+.st-key-report_card,
+.st-key-feedback_card {
+    border-radius: 16px !important;
+    padding: 1.6rem 1.8rem !important;
+    background: rgba(255,255,255,0.03) !important;
+    backdrop-filter: blur(8px);
+}
+.st-key-input_card    { border: 1px solid rgba(255,140,50,0.18) !important; }
+.st-key-report_card   { border: 1px solid rgba(255,140,50,0.22) !important; }
+.st-key-feedback_card { border: 1px solid rgba(80,200,120,0.22) !important; }
+
+/* ── Critic score badge ── */
+.score-badge {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #50c878;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+.score-badge span {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #7a9a86;
+    margin-left: 1px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -326,6 +399,12 @@ st.markdown("""
         Four specialized AI agents collaborate — searching, scraping, writing,
         and critiquing — to deliver a polished research report on any topic.
     </p>
+    <div class="tech-row">
+        <span class="tech-chip">🧠 Mistral AI</span>
+        <span class="tech-chip">🔎 Tavily Search</span>
+        <span class="tech-chip">🔗 LangChain</span>
+        <span class="tech-chip">⚡ Streamlit</span>
+    </div>
 </div>
 <div class="divider"></div>
 """, unsafe_allow_html=True)
@@ -335,36 +414,22 @@ st.markdown("""
 col_input, col_spacer, col_pipeline = st.columns([5, 0.5, 4])
 
 with col_input:
-    st.markdown('<div class="input-card">', unsafe_allow_html=True)
-    topic = st.text_input(
-        "Research Topic",
-        placeholder="e.g. Quantum computing breakthroughs in 2025",
-        key="topic_input",
-        label_visibility="visible",
-    )
-    run_btn = st.button("⚡  Run Research Pipeline", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container(border=True, key="input_card"):
+        topic = st.text_input(
+            "Research Topic",
+            placeholder="e.g. Quantum computing breakthroughs in 2025",
+            key="topic_input",
+            label_visibility="visible",
+        )
+        run_btn = st.button("⚡  Run Research Pipeline", use_container_width=True)
 
-    # Example chips
-    st.markdown("""
-    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
-        <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:#605850;letter-spacing:0.1em;">TRY →</span>
-    """, unsafe_allow_html=True)
+    # Example chips — built as ONE markdown block so the flex row applies
     examples = ["LLM agents 2025", "CRISPR gene editing", "Fusion energy progress"]
-    for ex in examples:
-        st.markdown(f"""
-        <span style="
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-            border-radius:6px;
-            padding:0.25rem 0.7rem;
-            font-size:0.75rem;
-            color:#a09890;
-            font-family:'DM Sans',sans-serif;
-            cursor:default;
-        ">{ex}</span>
-        """, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    chips = "".join(f'<span class="ex-chip">{ex}</span>' for ex in examples)
+    st.markdown(
+        f'<div class="try-row"><span class="try-label">TRY →</span>{chips}</div>',
+        unsafe_allow_html=True,
+    )
 
 with col_pipeline:
     st.markdown('<div class="section-heading">Pipeline</div>', unsafe_allow_html=True)
@@ -475,29 +540,32 @@ if r:
 
     # Final report
     if "writer" in r:
-        st.markdown("""
-        <div class="report-panel">
-            <div class="panel-label orange">📝 Final Research Report</div>
-        """, unsafe_allow_html=True)
-        st.markdown(r["writer"])   # render markdown natively
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Download
-        st.download_button(
-            label="⬇  Download Report (.md)",
-            data=r["writer"],
-            file_name=f"research_report_{int(time.time())}.md",
-            mime="text/markdown",
-        )
+        with st.container(border=True, key="report_card"):
+            st.markdown('<div class="panel-label orange">📝 Final Research Report</div>',
+                        unsafe_allow_html=True)
+            st.markdown(r["writer"])   # render markdown natively
+            st.download_button(
+                label="⬇  Download Report (.md)",
+                data=r["writer"],
+                file_name=f"research_report_{int(time.time())}.md",
+                mime="text/markdown",
+            )
 
     # Critic feedback
     if "critic" in r:
-        st.markdown("""
-        <div class="feedback-panel">
-            <div class="panel-label green">🧐 Critic Feedback</div>
-        """, unsafe_allow_html=True)
-        st.markdown(r["critic"])
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True, key="feedback_card"):
+            # Lift the "Score: X/10" line out of the text into a badge
+            score_match = re.search(r"Score:\s*([\d.]+)\s*/\s*10", r["critic"])
+            score_html = (
+                f'<span class="score-badge">{score_match.group(1)}<span>/10</span></span>'
+                if score_match else ""
+            )
+            st.markdown(
+                '<div class="panel-label green" style="display:flex;align-items:center;'
+                f'justify-content:space-between;">🧐 Critic Feedback{score_html}</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(r["critic"])
 
 
 # ── Footer ────────────────────────────────────────────────────────────────────
